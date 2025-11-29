@@ -16,7 +16,7 @@ unsigned long lastBeatTime = 0;
 #define RATE_SIZE 10        // هنحسب متوسط آخر 10 دقات
 int rates[RATE_SIZE];       // مصفوفة لتخزين القراءات
 int rateSpot = 0;           // مؤشر للكتابة في المصفوفة
-long lastBeat = 0;          // وقت آخر دقة
+//long lastBeat = 0;          // وقت آخر دقة
 
 float beatsPerMinute = 0;
 int beatAvg = 0;            // ده الرقم الدقيق النهائي
