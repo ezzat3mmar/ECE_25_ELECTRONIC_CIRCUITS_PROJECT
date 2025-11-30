@@ -8,6 +8,7 @@ void screenDisplay(void *parameters){
   uint8_t i=0;
   screen.clear();
   for(;;){
+    screen.clearBuffer();
     screen.setFont(u8g2_font_helvR10_te);
     screen.setCursor(0,10);
     screen.printf("Hello World!");
