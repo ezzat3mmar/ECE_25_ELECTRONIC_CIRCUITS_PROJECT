@@ -1,138 +1,59 @@
-#include <Arduino.h>
+#include <WiFi.h>
+#include <ESP32Time.h>
 
-#include <Adafruit_Sensor.h>
-#include <DHT_U.h>
-#include <DHT.h>
+// Wifi Connection Params
+#define ssid "Ahmed"
+#define password "*asdf1234#"
 
-#define DHTPIN 13
-#define DHTTYPE DHT11
+//ESP32Time object created;
+ESP32Time rtc(0); 
 
-#define PULSE_PIN 33
+// define params for configuring time
+#define gmOffset 7200
+#define dayLightSavingOffset 0
+#define ntpServer1 "pool.ntp.org"
+//#define ntpServer2 "time.nist.gov"
 
-DHT_Unified dht(DHTPIN, DHTTYPE);
+typedef struct{
+  String time;
+  String date;
+  String ampm;
+}timeStrings;
 
-TaskHandle_t readDHT_handle;
+timeStrings info;
 
-void readDHT(void* parameters){
-  for(;;){
-    vTaskDelay(1000 / portTICK_RATE_MS);
-
-    sensors_event_t event;
-    dht.temperature().getEvent(&event);
-
-    if(isnan(event.temperature)){
-      Serial.println("DHT11 FAILED TO READ TEMP");
-    }else{
-      Serial.print("DHT11 Temp = ");
-      Serial.print(event.temperature);
-      Serial.println("°C");
-    }
-
-    dht.humidity().getEvent(&event);
-
-    if(isnan(event.relative_humidity)){
-      Serial.println("DHT11 FAILED TO READ RELATIVE HUMIDITY"); 
-    }else{
-      Serial.print("DHT11 REL_HUMIDITY = ");
-      Serial.print(event.relative_humidity);
-      Serial.println("%");  
-    }
-
-    Serial.print("Free Stack DHT: ");
-    Serial.println(uxTaskGetStackHighWaterMark(readDHT_handle));
-  }
-}
-
-void readPulseSensor(void *parameters){
-  uint32_t lastPeakTime = 0;
-  uint16_t threshold = 2650;
-  uint32_t timeDelay = 800;
-  bool pulseOcurred = false;
-
-  uint8_t READING_NUM = 10;
-  uint8_t CURRENT_INDEX = 0;
-  uint16_t lastPulses[READING_NUM] = {0,0,0,0,0,0,0,0,0,0};
-
-  uint16_t signal;
-  uint16_t BPM = 0;
-  uint16_t tempBPM;
-
-  for(;;){
-    signal = analogRead(PULSE_PIN);
-
-    if(signal > threshold && !pulseOcurred){
-      
-      uint32_t currentTime = millis();
-
-      if(currentTime - lastPeakTime > timeDelay){
-
-        tempBPM = 60000 / (currentTime - lastPeakTime);
-        
-        if(tempBPM>40 && tempBPM<120){
-          lastPulses[CURRENT_INDEX] = tempBPM;
-          CURRENT_INDEX = (CURRENT_INDEX+1)%10;
-        }
-
-        lastPeakTime = currentTime;
-        pulseOcurred = !pulseOcurred;
-
-      }
-
-      uint16_t sumBPM = 0;
-      uint8_t validReading = 0;
-
-      for(int i=0;i<=READING_NUM;i++){
-        if(lastPulses[i]>0){
-            sumBPM += lastPulses[i];
-            validReading++;
-        }
-      }
-      
-      if(validReading>0){
-        BPM = sumBPM/validReading;
-      }
-
-      Serial.print("Current BPM = ");
-      Serial.println(BPM);
-
-    }
-
-
-    if(signal < (threshold-100) && pulseOcurred){
-      pulseOcurred = !pulseOcurred;
-    }
-
-    vTaskDelay(10/portTICK_PERIOD_MS);
-
-  }
-}
-
-void setup(){
+void setup() {
   Serial.begin(115200);
 
-  dht.begin();
+  delay(2000);
 
-  xTaskCreatePinnedToCore(
-    readDHT,
-    "DHT SENSOR READING TASK",
-    2048,
-    NULL,
-    1,
-    &readDHT_handle,
-    1    
-  );
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.printf("Connecting to %s", ssid);
 
-  xTaskCreatePinnedToCore(
-    readPulseSensor,
-    "READ PULSE SENSOR TASK",
-    3000,
-    NULL,
-    1,
-    NULL,
-    1
-  );
+  while(WiFi.status()!=WL_CONNECTED){
+    Serial.print(".");
+  }
+
+  Serial.printf("\nConnected Successfully to %s", ssid);
+  Serial.print("\nLocal IP: ");
+  Serial.println(WiFi.localIP());
+
+  configTime(gmOffset, dayLightSavingOffset, ntpServer1);
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)){
+    Serial.println("Configured Correctly");
+    //rtc.setTimeStruct(timeinfo);
+  }
 }
 
-void loop(){
-
+void loop() {
+  info.time = rtc.getTime();
+  info.date = rtc.getDate(false);
+  info.ampm = rtc.getAmPm(true);
+  Serial.print(info.date);
+  Serial.print("  ");
+  Serial.print(info.time);
+  Serial.print("  ");
+  Serial.println(info.ampm);
 }
