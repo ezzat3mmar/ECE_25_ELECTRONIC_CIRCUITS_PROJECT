@@ -80,6 +80,9 @@ QueueHandle_t screenDHTQueue_handle;
 QueueHandle_t screenPulseQueue_handle;
 #define SCREEN_PULSE_QUEUE_SIZE 10
 
+QueueHandle_t screenOpenWeather_handle;
+#define SCREEN_WEATHER_API_QUEUE_SIZE 1
+
 SemaphoreHandle_t screenDisplaySemaphore_handle;
 
 void IRAM_ATTR screenButtonISR(){
@@ -136,7 +139,7 @@ void readDHT(void* parameters){
       TempRHvalues.rh = event.relative_humidity;
     }
 
-    xQueueSend(screenDHTQueue_handle, &TempRHvalues, 50);
+    xQueueSend(screenDHTQueue_handle, &TempRHvalues, portMAX_DELAY);
 
     Serial.print("Free Stack DHT: ");
     Serial.println(uxTaskGetStackHighWaterMark(readDHT_handle));
@@ -195,7 +198,7 @@ void readPulseSensor(void *parameters){
       Serial.print("Current BPM = ");
       Serial.println(BPM);
 
-      xQueueSend(screenPulseQueue_handle, &BPM, 20);
+      xQueueSend(screenPulseQueue_handle, &BPM, portMAX_DELAY);
 
     }
 
@@ -222,7 +225,7 @@ void readRTC(void *parameters){
       Serial.print(strTime.date);
       Serial.printf("  %s  %s \n", strTime.time, strTime.AmPm);
 
-      xQueueSend(screenRTCQueue_handle, &strTime, 50);
+      xQueueSend(screenRTCQueue_handle, &strTime, portMAX_DELAY);
 
     }else{
       Serial.println("FAILED TO READTIME");
@@ -236,6 +239,8 @@ void openWeatherGet(void* parameters){
   openWeatherJSONParsed weatherInfoBuffer;
   String tempJSON;
   JSONVar tempJSONVar;
+  String weatherDescriptionBuffer;
+  float numBuffer;
 
   for(;;){
     httpClient.begin(openWeatherUrl);
@@ -244,20 +249,29 @@ void openWeatherGet(void* parameters){
       Serial.println("---- HOLA! CONNECTED HTTP ----");
       tempJSON = httpClient.getString();
       tempJSONVar = JSON.parse(tempJSON);
+      
+      weatherInfoBuffer.description = tempJSONVar.stringify(tempJSONVar["weather"][0]["description"]);
+      weatherInfoBuffer.tempFeelLike = atof(tempJSONVar.stringify(tempJSONVar["main"]["feels_like"]).c_str());
+      weatherInfoBuffer.humidity = atof(tempJSONVar.stringify(tempJSONVar["main"]["humidity"]).c_str());
+      weatherInfoBuffer.windSpeed = atof(tempJSONVar.stringify(tempJSONVar["wind"]["speed"]).c_str());
+
+      xQueueSend(screenOpenWeather_handle, &weatherInfoBuffer, portMAX_DELAY);
 
       Serial.print("Description = ");
-      Serial.println(tempJSONVar["weather"][0]["description"]);
+      Serial.println(weatherInfoBuffer.description);
       Serial.print("API TEMP = ");
-      Serial.println(tempJSONVar["main"]["feels_like"]);
+      Serial.println(weatherInfoBuffer.tempFeelLike);
       Serial.print("API RH = ");
-      Serial.println(tempJSONVar["main"]["humidity"]);
+      Serial.println(weatherInfoBuffer.humidity);
       Serial.print("Wind Speed = ");
-      Serial.println(tempJSONVar["wind"]["speed"]);
+      Serial.println(weatherInfoBuffer.windSpeed);
+
+      httpClient.end();
+      vTaskDelay(5000/portTICK_PERIOD_MS);
 
     }else{
       Serial.println("HELL NAH");
     }
-    httpClient.end();
     vTaskDelay(5000/portTICK_PERIOD_MS);
   }
 }
@@ -267,6 +281,7 @@ void screenDisplay(void *parameters){
   timeStrings tmInfoBuffer;
   DHT_sensor_data TempRHvaluesBuffer;
   uint16_t pulseReadingBuffer;
+  openWeatherJSONParsed weatherInfoBuffer;
 
   for(;;){
     if(xSemaphoreTake(screenDisplaySemaphore_handle, 150/portTICK_PERIOD_MS)){
@@ -274,7 +289,7 @@ void screenDisplay(void *parameters){
     }
 
     if(currentScreenIndex == 0){
-      xQueueReceive(screenRTCQueue_handle, &tmInfoBuffer, 100);
+      xQueueReceive(screenRTCQueue_handle, &tmInfoBuffer, 0);
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB12_te);
       screen.drawStr(30,25, tmInfoBuffer.time.c_str());
@@ -282,7 +297,7 @@ void screenDisplay(void *parameters){
       screen.drawStr(20,50, tmInfoBuffer.date.c_str());
       screen.sendBuffer();
     }else if(currentScreenIndex == 1){
-      xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, 50);
+      xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, 0);
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB10_te);
       screen.setCursor(20,25);
@@ -291,7 +306,7 @@ void screenDisplay(void *parameters){
       screen.printf("RH = %.2f", TempRHvaluesBuffer.rh);
       screen.sendBuffer();
     }else if(currentScreenIndex == 2){
-      xQueueReceive(screenPulseQueue_handle, &pulseReadingBuffer, 20);
+      xQueueReceive(screenPulseQueue_handle, &pulseReadingBuffer, 0);
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB12_te);
       screen.drawStr(40, 25, "BPM");
@@ -299,9 +314,16 @@ void screenDisplay(void *parameters){
       screen.print(pulseReadingBuffer);
       screen.sendBuffer();
     }else{
+      xQueueReceive(screenOpenWeather_handle, &weatherInfoBuffer, 0);
       screen.clearBuffer();
-      screen.setFont(u8g2_font_helvB12_te);
-      screen.drawStr(40,25,"MY API screen!!!");
+      screen.setFont(u8g2_font_helvR10_tr);
+      screen.drawStr(40,15, weatherInfoBuffer.description.c_str());
+      screen.setCursor(20,30);
+      screen.print(weatherInfoBuffer.tempFeelLike);
+      screen.setCursor(20,45);
+      screen.print(weatherInfoBuffer.humidity);
+      screen.setCursor(30,60);
+      screen.print(weatherInfoBuffer.windSpeed);
       screen.sendBuffer();
     }
 
@@ -324,6 +346,7 @@ void setup(){
   screenRTCQueue_handle = xQueueCreate(1, sizeof(timeStrings));
   screenDHTQueue_handle = xQueueCreate(SCREEN_DHT_QUEUE_SIZE, sizeof(DHT_sensor_data));
   screenPulseQueue_handle = xQueueCreate(SCREEN_PULSE_QUEUE_SIZE, sizeof(uint16_t));
+  screenOpenWeather_handle = xQueueCreate(SCREEN_WEATHER_API_QUEUE_SIZE, sizeof(openWeatherJSONParsed));
 
   WiFi.mode(WIFI_STA); // Set to station mode
   WiFi.begin(SSID, PASSWORD);
