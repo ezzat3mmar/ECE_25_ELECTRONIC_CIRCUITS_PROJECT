@@ -225,7 +225,8 @@ void readRTC(void *parameters){
       Serial.print(strTime.date);
       Serial.printf("  %s  %s \n", strTime.time, strTime.AmPm);
 
-      xQueueSend(screenRTCQueue_handle, &strTime, portMAX_DELAY);
+      //xQueueSend(screenRTCQueue_handle, &strTime, 750/portTICK_PERIOD_MS);
+      xQueueOverwrite(screenRTCQueue_handle, &strTime);
 
     }else{
       Serial.println("FAILED TO READTIME");
@@ -284,12 +285,12 @@ void screenDisplay(void *parameters){
   openWeatherJSONParsed weatherInfoBuffer;
 
   for(;;){
-    if(xSemaphoreTake(screenDisplaySemaphore_handle, 150/portTICK_PERIOD_MS)){
+    if(xSemaphoreTake(screenDisplaySemaphore_handle, pdMS_TO_TICKS(150))){
       currentScreenIndex = (currentScreenIndex+1)%4;
     }
 
     if(currentScreenIndex == 0){
-      xQueueReceive(screenRTCQueue_handle, &tmInfoBuffer, 0);
+      xQueueReceive(screenRTCQueue_handle, &tmInfoBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB12_te);
       screen.drawStr(30,25, tmInfoBuffer.time.c_str());
@@ -297,7 +298,7 @@ void screenDisplay(void *parameters){
       screen.drawStr(20,50, tmInfoBuffer.date.c_str());
       screen.sendBuffer();
     }else if(currentScreenIndex == 1){
-      xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, 0);
+      xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB10_te);
       screen.setCursor(20,25);
@@ -306,7 +307,7 @@ void screenDisplay(void *parameters){
       screen.printf("RH = %.2f", TempRHvaluesBuffer.rh);
       screen.sendBuffer();
     }else if(currentScreenIndex == 2){
-      xQueueReceive(screenPulseQueue_handle, &pulseReadingBuffer, 0);
+      xQueueReceive(screenPulseQueue_handle, &pulseReadingBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB12_te);
       screen.drawStr(40, 25, "BPM");
@@ -314,15 +315,18 @@ void screenDisplay(void *parameters){
       screen.print(pulseReadingBuffer);
       screen.sendBuffer();
     }else{
-      xQueueReceive(screenOpenWeather_handle, &weatherInfoBuffer, 0);
+      xQueueReceive(screenOpenWeather_handle, &weatherInfoBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
-      screen.setFont(u8g2_font_helvR10_tr);
-      screen.drawStr(40,15, weatherInfoBuffer.description.c_str());
-      screen.setCursor(20,30);
-      screen.print(weatherInfoBuffer.tempFeelLike);
-      screen.setCursor(20,45);
+      screen.setFont(u8g2_font_helvB08_tr);
+      screen.drawStr(24,17, weatherInfoBuffer.description.c_str());
+      screen.setCursor(14,34);
+      screen.print("Temp: ");
+      screen.print(weatherInfoBuffer.tempFeelLike - 273.25);
+      screen.setCursor(14,64);
+      screen.print("RH(%): ");
       screen.print(weatherInfoBuffer.humidity);
-      screen.setCursor(30,60);
+      screen.setCursor(14,47);
+      screen.print("wind speed: ");
       screen.print(weatherInfoBuffer.windSpeed);
       screen.sendBuffer();
     }
