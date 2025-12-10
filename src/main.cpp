@@ -18,11 +18,13 @@
 #include <credentials.h>
 
 #define SCREEN_CHANGE_BUTTON 18
+#define TIME_EDIT_ENABLE_BUTTON 32
 #define DEBOUNCE_TIME 250
 
 unsigned long lastScreenChangeTime = 0;
+unsigned long lastTimeEditEnablePressed = 0;
 
-#define DHTPIN 32
+#define DHTPIN 13
 #define DHTTYPE DHT11
 
 #define PULSE_PIN 33
@@ -47,6 +49,15 @@ typedef struct{
 }timeStrings;
 
 typedef struct{
+  int hour;
+  int min;
+  int sec;
+  int year; 
+  int month;
+  int day;
+}timeInt;
+
+typedef struct{
   float temp;       // stands for Temperature obviusly!!
   float rh;         // stands for relative humidiy
 }DHT_sensor_data;
@@ -59,9 +70,9 @@ typedef struct{
 }openWeatherJSONParsed;
 
 typedef struct{
-  uint8_t screenCurrentIndex;
-  uint8_t currentBlinkingTimeField;
-  uint8_t timeChange;
+  uint8_t screenCurrentIndex;         //  the current screen number showed on the OLED (0-3)
+  uint8_t currentBlinkingTimeField;   //  the current binking part of Time and date (0-5)
+  uint8_t timeChange;                 //  the new change added to the offsets
 }ScreenStatus;
 
 openWeatherJSONParsed weatherInfo;
@@ -95,20 +106,28 @@ QueueHandle_t screenOpenWeather_handle;
 
 SemaphoreHandle_t screenDisplaySemaphore_handle;
 
-void IRAM_ATTR screenButtonsISR(){
+void IRAM_ATTR screenChangeButtonISR(){
   unsigned long currentTime = millis();
   if(currentTime - lastScreenChangeTime > DEBOUNCE_TIME){
-    BaseType_t higherPriorityTaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR(screenDisplaySemaphore_handle, &higherPriorityTaskWoken);
-    Serial.println("SEMAPHORE DONEEEEEEEEEEEEEEEEEEEEEEE EEEE");
+    //BaseType_t higherPriorityTaskWoken = pdFALSE;
+    //xSemaphoreGiveFromISR(screenDisplaySemaphore_handle, &higherPriorityTaskWoken);
+    //Serial.println("SEMAPHORE DONEEEEEEEEEEEEEEEEEEEEEEE EEEE");
     //ESP_LOGI();
-    if(digitalRead(SCREEN_CHANGE_BUTTON) == LOW){
-      screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1)%4;
-      lastScreenChangeTime = currentTime;
-    }
-    if(higherPriorityTaskWoken){
+    screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1)%4;
+    lastScreenChangeTime = currentTime;
+    //Serial.print("A7A FASH555");
+    /*if(higherPriorityTaskWoken){
       portYIELD_FROM_ISR();
-    }
+    }*/
+  }
+}
+
+void IRAM_ATTR screenTimeDateEditEnableButtonISR(){
+  unsigned long currentTime = millis();
+  if(currentTime - lastTimeEditEnablePressed > DEBOUNCE_TIME){
+    lastTimeEditEnablePressed = currentTime;
+    screenStatusCfx.currentBlinkingTimeField = (screenStatusCfx.currentBlinkingTimeField+1)%6;
+    //Serial.printf("Look AT MY NUMBERS == > %d \n", screenStatusCfx.currentBlinkingTimeField);
   }
 }
 
@@ -236,8 +255,8 @@ void readRTC(void *parameters){
       strTime.time = rtc.getTime();
       strTime.AmPm = rtc.getAmPm(true);
 
-      Serial.print(strTime.date);
-      Serial.printf("  %s  %s \n", strTime.time, strTime.AmPm);
+      //Serial.print(strTime.date);
+      //Serial.printf("  %s  %s \n", strTime.time, strTime.AmPm);
 
       //xQueueSend(screenRTCQueue_handle, &strTime, 750/portTICK_PERIOD_MS);
       xQueueOverwrite(screenRTCQueue_handle, &strTime);
@@ -248,6 +267,20 @@ void readRTC(void *parameters){
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
   }
+}
+
+void createTimeDateFrames(String arr[], String time, String date, int size = 7, bool mode=true){
+  if(mode){
+    arr[0] = time.substring(0,5);
+  }else{
+    arr[0] = time;
+  }
+  arr[1] = time.substring(0,3) + "--";
+  arr[2] = "--" + time.substring(2,5);
+  arr[3] = date; 
+  arr[4] = date.substring(0,9) + "--" + date.substring(11,date.length());
+  arr[5] = date.substring(0,5) + "---" + date.substring(8,date.length());
+  arr[6] = date.substring(0,12) + "----";
 }
 
 void openWeatherGet(void* parameters){
@@ -297,23 +330,55 @@ void screenDisplay(void *parameters){
   DHT_sensor_data TempRHvaluesBuffer;
   uint16_t pulseReadingBuffer;
   openWeatherJSONParsed weatherInfoBuffer;
+  String timeDateFrames[7];
+
+  bool currentBlinkingState = false;
+
+  int x;
+  int y;
 
   for(;;){
-    
-    /*
-    if(xSemaphoreTake(screenDisplaySemaphore_handle, pdMS_TO_TICKS(150))){
-      currentScreenIndex = (currentScreenIndex+1)%4;
-    }
-    */
+
+    vTaskDelay(pdMS_TO_TICKS(400));
 
     if(screenStatusCfx.screenCurrentIndex == 0){
       xQueueReceive(screenRTCQueue_handle, &tmInfoBuffer, pdMS_TO_TICKS(10));
-      screen.clearBuffer();
-      screen.setFont(u8g2_font_helvB12_te);
-      screen.drawStr(40,25, tmInfoBuffer.time.substring(0,5).c_str());
-      screen.setFont(u8g2_font_helvR08_te);
-      screen.drawStr(20,50, tmInfoBuffer.date.c_str());
-      screen.sendBuffer();
+      createTimeDateFrames(timeDateFrames, tmInfoBuffer.time, tmInfoBuffer.date);
+      currentBlinkingState = !currentBlinkingState;
+
+      if((screenStatusCfx.currentBlinkingTimeField==1 || screenStatusCfx.currentBlinkingTimeField==2) && currentBlinkingState==true){
+        Serial.println("I'm fucking here!!!");
+        if(screenStatusCfx.currentBlinkingTimeField==1){
+          x = 1;
+        }else{
+          x=2;
+        }
+        screen.clearBuffer();
+        screen.setFont(u8g2_font_helvB12_te);
+        screen.drawStr(40,25, timeDateFrames[x].c_str());
+        Serial.printf("THIS SHOULD BE PRINTED -> %s \n", tmInfoBuffer.time.substring(x,y));
+        screen.setFont(u8g2_font_helvR08_te);
+        screen.drawStr(20,50, timeDateFrames[3].c_str());
+        screen.sendBuffer();
+      }else if (screenStatusCfx.currentBlinkingTimeField>=3 && currentBlinkingState==true){
+        screen.clearBuffer();
+        screen.setFont(u8g2_font_helvB12_te);
+        screen.drawStr(40,25, timeDateFrames[0].c_str());
+        screen.setFont(u8g2_font_helvR08_te);
+        screen.drawStr(20,50, timeDateFrames[screenStatusCfx.currentBlinkingTimeField+1].c_str());
+        screen.sendBuffer();
+      }else{
+        screen.clearBuffer();
+        screen.setFont(u8g2_font_helvB12_te);
+        screen.drawStr(40,25, timeDateFrames[0].c_str());
+        screen.setFont(u8g2_font_helvR08_te);
+        screen.drawStr(20,50, timeDateFrames[3].c_str());
+        screen.sendBuffer();
+      }
+
+      Serial.printf("A7a Num = %d , LoL num = %d \n", screenStatusCfx.currentBlinkingTimeField, currentBlinkingState);
+      //ESP_LOGI("LoLFromMyScreenDisplay", "A7A7A7A7A7A7 \n");
+    
     }else if(screenStatusCfx.screenCurrentIndex == 1){
       xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
@@ -349,7 +414,9 @@ void screenDisplay(void *parameters){
     }
 
   }
+
 }
+
 
 void setup(){
   Serial.begin(115200);
@@ -359,8 +426,11 @@ void setup(){
   dht.begin();
 
   pinMode(SCREEN_CHANGE_BUTTON, INPUT_PULLUP);
+  pinMode(TIME_EDIT_ENABLE_BUTTON, INPUT_PULLUP);
   
-  attachInterrupt(digitalPinToInterrupt(SCREEN_CHANGE_BUTTON), screenButtonsISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(SCREEN_CHANGE_BUTTON),  screenChangeButtonISR, FALLING);
+  //attachInterrupt(digitalPinToInterrupt(SCREEN_CHANGE_BUTTON),  screenTimeDateEditEnableButtonISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(TIME_EDIT_ENABLE_BUTTON), screenTimeDateEditEnableButtonISR, FALLING);
 
   screenDisplaySemaphore_handle = xSemaphoreCreateBinary();
 
@@ -428,7 +498,7 @@ void setup(){
   xTaskCreatePinnedToCore(
     screenDisplay,
     "OLED DISPLAY TASK",
-    4000,
+    5000,
     NULL,
     1,
     NULL,
