@@ -115,7 +115,7 @@ void IRAM_ATTR screenChangeButtonISR(){
     //ESP_LOGI();
     screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1)%4;
     lastScreenChangeTime = currentTime;
-    //Serial.print("A7A FASH555");
+    //Serial.print("LINE IN ISR SCREEN_CHANGE");
     /*if(higherPriorityTaskWoken){
       portYIELD_FROM_ISR();
     }*/
@@ -347,7 +347,7 @@ void screenDisplay(void *parameters){
       currentBlinkingState = !currentBlinkingState;
 
       if((screenStatusCfx.currentBlinkingTimeField==1 || screenStatusCfx.currentBlinkingTimeField==2) && currentBlinkingState==true){
-        Serial.println("I'm fucking here!!!");
+        //Serial.println("Here DePUg HerE");
         if(screenStatusCfx.currentBlinkingTimeField==1){
           x = 1;
         }else{
@@ -376,8 +376,8 @@ void screenDisplay(void *parameters){
         screen.sendBuffer();
       }
 
-      Serial.printf("A7a Num = %d , LoL num = %d \n", screenStatusCfx.currentBlinkingTimeField, currentBlinkingState);
-      //ESP_LOGI("LoLFromMyScreenDisplay", "A7A7A7A7A7A7 \n");
+      //Serial.printf("CurrentBlinkingField = %d , currentliningSatate num = %d \n", screenStatusCfx.currentBlinkingTimeField, currentBlinkingState);
+
     
     }else if(screenStatusCfx.screenCurrentIndex == 1){
       xQueueReceive(screenDHTQueue_handle, &TempRHvaluesBuffer, pdMS_TO_TICKS(10));
@@ -429,7 +429,6 @@ void setup(){
   pinMode(TIME_EDIT_ENABLE_BUTTON, INPUT_PULLUP);
   
   attachInterrupt(digitalPinToInterrupt(SCREEN_CHANGE_BUTTON),  screenChangeButtonISR, FALLING);
-  //attachInterrupt(digitalPinToInterrupt(SCREEN_CHANGE_BUTTON),  screenTimeDateEditEnableButtonISR, FALLING);
   attachInterrupt(digitalPinToInterrupt(TIME_EDIT_ENABLE_BUTTON), screenTimeDateEditEnableButtonISR, FALLING);
 
   screenDisplaySemaphore_handle = xSemaphoreCreateBinary();
