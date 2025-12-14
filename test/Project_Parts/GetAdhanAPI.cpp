@@ -150,7 +150,7 @@ void IRAM_ATTR screenChangeButtonISR(){
     //xSemaphoreGiveFromISR(screenDisplaySemaphore_handle, &higherPriorityTaskWoken);
     //Serial.println("SEMAPHORE DONEEEEEEEEEEEEEEEEEEEEEEE EEEE");
     //ESP_LOGI();
-   screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1) % 5; // Changed from %4 to %5
+    screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1) % 5; // Changed from %4 to %5
     lastScreenChangeTime = currentTime;
     //Serial.print("LINE IN ISR SCREEN_CHANGE");
     /*if(higherPriorityTaskWoken){
@@ -657,7 +657,7 @@ void setup(){
     NULL,
     1,
     &readDHT_handle,
-    1    
+    1 
   );
 
   xTaskCreatePinnedToCore(
