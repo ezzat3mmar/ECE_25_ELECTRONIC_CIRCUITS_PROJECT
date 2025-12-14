@@ -49,6 +49,14 @@ typedef struct{
 }timeStrings;
 
 typedef struct{
+  uint8_t minOffset;
+  uint8_t hrOffset;
+  uint8_t dayOffset;
+  uint8_t monthOffset;
+  uint8_t yearOffset;
+}timeOffsets;
+
+typedef struct{
   int hour;
   int min;
   int sec;
@@ -88,9 +96,20 @@ ScreenStatus screenStatusCfx = {
   .timeChange = 0
 };
 
+/*
+timeOffsets timeOffsetsCfx = {
+  .minOffset = 0,
+  .hrOffset = 0,
+  .dayOffset = 0, 
+  .monthOffset = 0,
+  .yearOffset = 0,
+};
+*/
+
 TaskHandle_t readDHT_handle;
 TaskHandle_t readPulseSensor_handle;
 TaskHandle_t readRTC_handle;
+TaskHandle_t openWeatherTask_handle;
 TaskHandle_t screenDisplay_handle;
 
 QueueHandle_t screenRTCQueue_handle;
@@ -130,6 +149,31 @@ void IRAM_ATTR screenTimeDateEditEnableButtonISR(){
     //Serial.printf("Look AT MY NUMBERS == > %d \n", screenStatusCfx.currentBlinkingTimeField);
   }
 }
+
+/*
+void IRAM_ATTR screenTimeDateIncreaseButton(){
+  switch(screenStatusCfx.currentBlinkingTimeField){
+    case 0: 
+      break;
+    case 1: 
+      timeOffsetsCfx.minOffset = (timeOffsetsCfx.minOffset + 1)%60;
+      break;
+    case 2: 
+      timeOffsetsCfx.hrOffset = (timeOffsetsCfx.hrOffset)%24;
+      break;
+    case 3: 
+      timeOffsetsCfx.dayOffset = (timeOffsetsCfx.dayOffset + 1)%7;
+      break;
+    case 4:
+      timeOffsetsCfx.monthOffset = (timeOffsetsCfx.monthOffset + 1)%12;
+      break;
+    case 5:
+      timeOffsetsCfx.yearOffset++;
+      break;
+
+  }
+}
+*/
 
 /*
 void testInterrupt(void *parameters){
@@ -217,7 +261,7 @@ void readPulseSensor(void *parameters){
       uint16_t sumBPM = 0;
       uint8_t validReading = 0;
 
-      for(int i=0;i<=READING_NUM;i++){
+      for(int i=0;i<READING_NUM;i++){
         if(lastPulses[i]>0){
             sumBPM += lastPulses[i];
             validReading++;
@@ -239,6 +283,9 @@ void readPulseSensor(void *parameters){
     if(signal < (threshold-100) && pulseOcurred){
       pulseOcurred = !pulseOcurred;
     }
+
+    Serial.print("Free PulseSensor Stack: ");
+    Serial.println(uxTaskGetStackHighWaterMark(readPulseSensor_handle));
 
     vTaskDelay(10/portTICK_PERIOD_MS);
 
@@ -264,6 +311,10 @@ void readRTC(void *parameters){
     }else{
       Serial.println("FAILED TO READTIME");
     }
+
+    Serial.print("Free RTC Stack: ");
+    Serial.println(uxTaskGetStackHighWaterMark(readRTC_handle));
+
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
   }
@@ -320,6 +371,10 @@ void openWeatherGet(void* parameters){
     }else{
       Serial.println("HELL NAH");
     }
+
+    Serial.print("Free openWeatherAPI Stack: ");
+    Serial.println(uxTaskGetStackHighWaterMark(openWeatherTask_handle));
+
     vTaskDelay(5000/portTICK_PERIOD_MS);
   }
 }
@@ -334,8 +389,8 @@ void screenDisplay(void *parameters){
 
   bool currentBlinkingState = false;
 
-  int x;
-  int y;
+  //int x;
+  //int y;
 
   for(;;){
 
@@ -348,15 +403,15 @@ void screenDisplay(void *parameters){
 
       if((screenStatusCfx.currentBlinkingTimeField==1 || screenStatusCfx.currentBlinkingTimeField==2) && currentBlinkingState==true){
         //Serial.println("Here DePUg HerE");
-        if(screenStatusCfx.currentBlinkingTimeField==1){
+        /*if(screenStatusCfx.currentBlinkingTimeField==1){
           x = 1;
         }else{
           x=2;
-        }
+        }*/
         screen.clearBuffer();
         screen.setFont(u8g2_font_helvB12_te);
-        screen.drawStr(40,25, timeDateFrames[x].c_str());
-        Serial.printf("THIS SHOULD BE PRINTED -> %s \n", tmInfoBuffer.time.substring(x,y));
+        screen.drawStr(40,25, timeDateFrames[screenStatusCfx.currentBlinkingTimeField].c_str());
+        //Serial.printf("THIS SHOULD BE PRINTED -> %s \n", tmInfoBuffer.time.substring(x,y));
         screen.setFont(u8g2_font_helvR08_te);
         screen.drawStr(20,50, timeDateFrames[3].c_str());
         screen.sendBuffer();
@@ -412,6 +467,9 @@ void screenDisplay(void *parameters){
       screen.print(weatherInfoBuffer.windSpeed);
       screen.sendBuffer();
     }
+
+    Serial.print("Free sceeenDisplay Stack: ");
+    Serial.println(uxTaskGetStackHighWaterMark(screenDisplay_handle));
 
   }
 
@@ -490,7 +548,7 @@ void setup(){
     4000,
     NULL,
     1,
-    NULL,
+    &openWeatherTask_handle,
     1
   );
 
@@ -500,7 +558,7 @@ void setup(){
     5000,
     NULL,
     1,
-    NULL,
+    &screenDisplay_handle,
     1
   );
 
