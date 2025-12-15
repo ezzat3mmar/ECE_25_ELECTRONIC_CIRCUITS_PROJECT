@@ -527,8 +527,8 @@ void getAdhanTimings(void* parameters){
       adhanBuffer.isha = adhanBuffer.isha.substring(1, adhanBuffer.isha.length()-1);
       
       // Extract Hijri date
-      JSONVar hijriDate = timings["data"]["date"]["hijri"]["date"];
-      adhanBuffer.hijriDate = hijriDate.stringify(hijriDate["date"]);
+      adhanBuffer.hijriDate = timings.stringify(timings["data"]["date"]["hijri"]["date"]);
+      //adhanBuffer.hijriDate = hijriDate.stringify(hijriDate["date"]);
       adhanBuffer.hijriDate = adhanBuffer.hijriDate.substring(1, adhanBuffer.hijriDate.length()-1);
       
       adhanBuffer.valid = true;
