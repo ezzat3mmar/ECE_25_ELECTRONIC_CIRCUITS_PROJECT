@@ -493,41 +493,41 @@ void openWeatherGet(void* parameters){
 void getAdhanTimings(void* parameters){
   AdhanTimings adhanBuffer;
   String tempJSON;
-  JSONVar tempJSONVar;
-  HTTPClient adhanHttpClient;
+  JSONVar timings;
+  //HTTPClient adhanHttpClient;
 
   for(;;){
     // Make HTTP request
-    adhanHttpClient.begin(adhanApiUrl);
-    int httpCode = adhanHttpClient.GET();
+    httpClient.begin(adhanApiUrl);
+    //adhanHttpClient.begin(adhanApiUrl);
+    int httpCode = httpClient.GET();
     
     if(httpCode > 0){
       Serial.println("---- Adhan API Connected ----");
       
       // Parse JSON response
-      tempJSON = adhanHttpClient.getString();
-      tempJSONVar = JSON.parse(tempJSON);
+      tempJSON = httpClient.getString();
+      timings = JSON.parse(tempJSON);
       
       // Extract prayer times
-      JSONVar timings = tempJSONVar["data"]["timings"];
       
-      adhanBuffer.fajr = timings.stringify(timings["Fajr"]);
+      adhanBuffer.fajr = timings.stringify(timings["data"]["timings"]["Fajr"]);
       adhanBuffer.fajr = adhanBuffer.fajr.substring(1, adhanBuffer.fajr.length()-1); // Remove quotes
       
-      adhanBuffer.dhuhr = timings.stringify(timings["Dhuhr"]);
+      adhanBuffer.dhuhr = timings.stringify(timings["data"]["timings"]["Dhuhr"]);
       adhanBuffer.dhuhr = adhanBuffer.dhuhr.substring(1, adhanBuffer.dhuhr.length()-1);
       
-      adhanBuffer.asr = timings.stringify(timings["Asr"]);
+      adhanBuffer.asr = timings.stringify(timings["data"]["timings"]["Asr"]);
       adhanBuffer.asr = adhanBuffer.asr.substring(1, adhanBuffer.asr.length()-1);
       
-      adhanBuffer.maghrib = timings.stringify(timings["Maghrib"]);
+      adhanBuffer.maghrib = timings.stringify(timings["data"]["timings"]["Maghrib"]);
       adhanBuffer.maghrib = adhanBuffer.maghrib.substring(1, adhanBuffer.maghrib.length()-1);
       
-      adhanBuffer.isha = timings.stringify(timings["Isha"]);
+      adhanBuffer.isha = timings.stringify(timings["data"]["timings"]["Isha"]);
       adhanBuffer.isha = adhanBuffer.isha.substring(1, adhanBuffer.isha.length()-1);
       
       // Extract Hijri date
-      JSONVar hijriDate = tempJSONVar["data"]["date"]["hijri"];
+      JSONVar hijriDate = timings["data"]["date"]["hijri"]["date"];
       adhanBuffer.hijriDate = hijriDate.stringify(hijriDate["date"]);
       adhanBuffer.hijriDate = adhanBuffer.hijriDate.substring(1, adhanBuffer.hijriDate.length()-1);
       
@@ -554,12 +554,12 @@ void getAdhanTimings(void* parameters){
       Serial.println(adhanBuffer.hijriDate);
       */ 
 
-      adhanHttpClient.end();
+      httpClient.end();
       
     } else {
       Serial.println("Adhan API Request Failed");
       adhanBuffer.valid = false;
-      adhanHttpClient.end();
+      httpClient.end();
     }
     
     Serial.print("Free Adhan Stack: ");
