@@ -44,9 +44,7 @@ ESP32Time rtc(0);
 
 String city = "Tanta"; 
 String countryCode = "EG";
-
 String openWeatherUrl = "http://api.openweathermap.org/data/2.5/weather?q=" + city + "," + countryCode + "&APPID=" + APIKey;
-String adhanApiUrl = "https://api.aladhan.com/v1/timings/15-12-2025?latitude=30.7885&longitude=31.0019&method=5";
 
 typedef struct{
   String date;
@@ -84,23 +82,14 @@ typedef struct{
 }openWeatherJSONParsed;
 
 typedef struct{
-  String fajr;
-  String dhuhr;
-  String asr;
-  String maghrib;
-  String isha;
-  String hijriDate;
-  bool valid;
-}AdhanTimings;
-
-typedef struct{
   volatile uint8_t screenCurrentIndex;         //  the current screen number showed on the OLED (0-3)
   volatile uint8_t currentBlinkingTimeField;   //  the current binking part of Time and date (0-5)
   volatile uint8_t timeChange;                 //  the new change added to the offsets
 }ScreenStatus;
 
-//openWeatherJSONParsed weatherInfo;
-//WiFiClient client;
+openWeatherJSONParsed weatherInfo;
+
+WiFiClient client;
 HTTPClient httpClient;
 
 U8G2_SH1106_128X64_NONAME_F_HW_I2C screen(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
@@ -112,14 +101,13 @@ ScreenStatus screenStatusCfx = {
 };
 
 
-/*
 timeOffsets timeOffsetsCfx = {
   .minOffset = 0,
   .hrOffset = 0,
   .dayOffset = 0, 
   .monthOffset = 0,
   .yearOffset = 0,
-};*/
+};
 
 
 TaskHandle_t readDHT_handle;
@@ -127,7 +115,6 @@ TaskHandle_t readPulseSensor_handle;
 TaskHandle_t readRTC_handle;
 TaskHandle_t openWeatherTask_handle;
 TaskHandle_t screenDisplay_handle;
-TaskHandle_t adhanTask_handle;
 
 QueueHandle_t screenRTCQueue_handle;
 
@@ -140,9 +127,6 @@ QueueHandle_t screenPulseQueue_handle;
 QueueHandle_t screenOpenWeather_handle;
 #define SCREEN_WEATHER_API_QUEUE_SIZE 1
 
-QueueHandle_t screenAdhanQueue_handle;
-#define SCREEN_ADHAN_QUEUE_SIZE 1
-
 SemaphoreHandle_t screenDisplaySemaphore_handle;
 SemaphoreHandle_t timeIncerementSemaphore_handle;
 SemaphoreHandle_t timeDecrementSemaphore_handle;
@@ -154,7 +138,7 @@ void IRAM_ATTR screenChangeButtonISR(){
     //xSemaphoreGiveFromISR(screenDisplaySemaphore_handle, &higherPriorityTaskWoken);
     //Serial.println("SEMAPHORE DONEEEEEEEEEEEEEEEEEEEEEEE EEEE");
     //ESP_LOGI();
-    screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1)%5;
+    screenStatusCfx.screenCurrentIndex = (screenStatusCfx.screenCurrentIndex + 1)%4;
     lastScreenChangeTime = currentTime;
     //Serial.print("LINE IN ISR SCREEN_CHANGE");
     /*if(higherPriorityTaskWoken){
@@ -445,6 +429,20 @@ void readRTC(void *parameters){
   }
 }
 
+void createTimeDateFrames(String arr[], String time, String date, int size = 7, bool mode=true){
+  if(mode){
+    arr[0] = time.substring(0,5);
+  }else{
+    arr[0] = time;
+  }
+  arr[1] = time.substring(0,3) + "--";
+  arr[2] = "--" + time.substring(2,5);
+  arr[3] = date; 
+  arr[4] = date.substring(0,9) + "--" + date.substring(11,date.length());
+  arr[5] = date.substring(0,5) + "---" + date.substring(8,date.length());
+  arr[6] = date.substring(0,12) + "----";
+}
+
 void openWeatherGet(void* parameters){
   openWeatherJSONParsed weatherInfoBuffer;
   String tempJSON;
@@ -490,107 +488,12 @@ void openWeatherGet(void* parameters){
   }
 }
 
-void getAdhanTimings(void* parameters){
-  AdhanTimings adhanBuffer;
-  String tempJSON;
-  JSONVar timings;
-  //HTTPClient adhanHttpClient;
-
-  for(;;){
-    // Make HTTP request
-    httpClient.begin(adhanApiUrl);
-    //adhanHttpClient.begin(adhanApiUrl);
-    int httpCode = httpClient.GET();
-    
-    if(httpCode > 0){
-      Serial.println("---- Adhan API Connected ----");
-      
-      // Parse JSON response
-      tempJSON = httpClient.getString();
-      timings = JSON.parse(tempJSON);
-      
-      // Extract prayer times
-      
-      adhanBuffer.fajr = timings.stringify(timings["data"]["timings"]["Fajr"]);
-      adhanBuffer.fajr = adhanBuffer.fajr.substring(1, adhanBuffer.fajr.length()-1); // Remove quotes
-      
-      adhanBuffer.dhuhr = timings.stringify(timings["data"]["timings"]["Dhuhr"]);
-      adhanBuffer.dhuhr = adhanBuffer.dhuhr.substring(1, adhanBuffer.dhuhr.length()-1);
-      
-      adhanBuffer.asr = timings.stringify(timings["data"]["timings"]["Asr"]);
-      adhanBuffer.asr = adhanBuffer.asr.substring(1, adhanBuffer.asr.length()-1);
-      
-      adhanBuffer.maghrib = timings.stringify(timings["data"]["timings"]["Maghrib"]);
-      adhanBuffer.maghrib = adhanBuffer.maghrib.substring(1, adhanBuffer.maghrib.length()-1);
-      
-      adhanBuffer.isha = timings.stringify(timings["data"]["timings"]["Isha"]);
-      adhanBuffer.isha = adhanBuffer.isha.substring(1, adhanBuffer.isha.length()-1);
-      
-      // Extract Hijri date
-      adhanBuffer.hijriDate = timings.stringify(timings["data"]["date"]["hijri"]["date"]);
-      //adhanBuffer.hijriDate = hijriDate.stringify(hijriDate["date"]);
-      adhanBuffer.hijriDate = adhanBuffer.hijriDate.substring(1, adhanBuffer.hijriDate.length()-1);
-      
-      adhanBuffer.valid = true;
-      
-      // Send to queue
-      xQueueOverwrite(screenAdhanQueue_handle, &adhanBuffer);
-      
-      // Debug output
-      Serial.println(timings);
-      /*
-      Serial.println("Prayer Times:");
-      Serial.print("Fajr: "); 
-      Serial.println(adhanBuffer.fajr);
-      Serial.print("Dhuhr: "); 
-      Serial.println(adhanBuffer.dhuhr);
-      Serial.print("Asr: "); 
-      Serial.println(adhanBuffer.asr);
-      Serial.print("Maghrib: "); 
-      Serial.println(adhanBuffer.maghrib);
-      Serial.print("Isha: "); 
-      Serial.println(adhanBuffer.isha);
-      Serial.print("Hijri Date: "); 
-      Serial.println(adhanBuffer.hijriDate);
-      */ 
-
-      httpClient.end();
-      
-    } else {
-      Serial.println("Adhan API Request Failed");
-      adhanBuffer.valid = false;
-      httpClient.end();
-    }
-    
-    Serial.print("Free Adhan Stack: ");
-    Serial.println(uxTaskGetStackHighWaterMark(adhanTask_handle));
-    
-    // Update every 6 hours (prayer times don't change often)
-    vTaskDelay(pdMS_TO_TICKS(12000)); // 6 hours = 21600000 ms
-  }
-}
-
-void createTimeDateFrames(String arr[], String time, String date, int size = 7, bool mode=true){
-  if(mode){
-    arr[0] = time.substring(0,5);
-  }else{
-    arr[0] = time;
-  }
-  arr[1] = time.substring(0,3) + "--";
-  arr[2] = "--" + time.substring(2,5);
-  arr[3] = date; 
-  arr[4] = date.substring(0,9) + "--" + date.substring(11,date.length());
-  arr[5] = date.substring(0,5) + "---" + date.substring(8,date.length());
-  arr[6] = date.substring(0,12) + "----";
-}
-
 void screenDisplay(void *parameters){
   uint8_t currentScreenIndex = 0;
   timeStrings tmInfoBuffer;
   DHT_sensor_data TempRHvaluesBuffer;
   uint16_t pulseReadingBuffer;
   openWeatherJSONParsed weatherInfoBuffer;
-  AdhanTimings adhanBuffer; 
   String timeDateFrames[7];
 
   bool currentBlinkingState = false;
@@ -657,7 +560,7 @@ void screenDisplay(void *parameters){
       screen.setCursor(50,50);
       screen.print(pulseReadingBuffer);
       screen.sendBuffer();
-    }else if(screenStatusCfx.screenCurrentIndex == 3){
+    }else{
       xQueueReceive(screenOpenWeather_handle, &weatherInfoBuffer, pdMS_TO_TICKS(10));
       screen.clearBuffer();
       screen.setFont(u8g2_font_helvB08_tr);
@@ -672,53 +575,8 @@ void screenDisplay(void *parameters){
       screen.print("wind speed: ");
       screen.print(weatherInfoBuffer.windSpeed);
       screen.sendBuffer();
-    }else{
-      xQueueReceive(screenAdhanQueue_handle, &adhanBuffer, pdMS_TO_TICKS(10));
-      
-      if(adhanBuffer.valid){
-        screen.clearBuffer();
-        screen.setFont(u8g2_font_helvB08_tr);
-        
-        // Title
-        screen.drawStr(35, 10, "Prayer Times");
-        
-        // Display prayer times in compact format
-        screen.setFont(u8g2_font_6x10_tr);
-        
-        screen.setCursor(5, 22);
-        screen.print("Fajr: ");
-        screen.print(adhanBuffer.fajr); // Show HH:MM only
-        
-        screen.setCursor(5, 33);
-        screen.print("Dhuhr: ");
-        screen.print(adhanBuffer.dhuhr);
-        
-        screen.setCursor(5, 44);
-        screen.print("Asr: ");
-        screen.print(adhanBuffer.asr);
-        
-        screen.setCursor(70, 22);
-        screen.print("Maghrib: ");
-        screen.print(adhanBuffer.maghrib);
-        
-        screen.setCursor(70, 33);
-        screen.print("Isha: ");
-        screen.print(adhanBuffer.isha);
-        
-        // Hijri date at bottom
-        screen.setCursor(15, 60);
-        screen.print(adhanBuffer.hijriDate);
-        
-        screen.sendBuffer();
-      } else {
-        // Show error message if API failed
-        screen.clearBuffer();
-        screen.setFont(u8g2_font_helvB10_te);
-        screen.drawStr(10, 32, "Prayer Times");
-        screen.drawStr(20, 48, "Loading...");
-        screen.sendBuffer();
-      }
     }
+
     Serial.print("Free sceeenDisplay Stack: ");
     Serial.println(uxTaskGetStackHighWaterMark(screenDisplay_handle));
 
@@ -752,7 +610,6 @@ void setup(){
   screenDHTQueue_handle = xQueueCreate(SCREEN_DHT_QUEUE_SIZE, sizeof(DHT_sensor_data));
   screenPulseQueue_handle = xQueueCreate(SCREEN_PULSE_QUEUE_SIZE, sizeof(uint16_t));
   screenOpenWeather_handle = xQueueCreate(SCREEN_WEATHER_API_QUEUE_SIZE, sizeof(openWeatherJSONParsed));
-  screenAdhanQueue_handle = xQueueCreate(SCREEN_ADHAN_QUEUE_SIZE, sizeof(AdhanTimings));
 
   Wire.begin();
   screen.begin();
@@ -762,7 +619,7 @@ void setup(){
   Serial.printf("Connecting to %s", WIFI_SSID);
 
   String StartScreenFrames[] = {"Connecting", "Connecting.", "Connecting..","Connecting..."};
-
+  
   while(WiFi.status() != WL_CONNECTED){
     for(int i=0; i<4; i++){
       screen.clearBuffer();
@@ -813,16 +670,6 @@ void setup(){
     NULL,
     1,
     &openWeatherTask_handle,
-    1
-  );
-
-  xTaskCreatePinnedToCore(
-    getAdhanTimings,
-    "Adhan Prayer Times Task",
-    4000,
-    NULL,
-    1,
-    &adhanTask_handle,
     1
   );
 
