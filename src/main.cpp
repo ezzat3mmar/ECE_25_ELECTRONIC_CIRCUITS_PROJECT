@@ -538,12 +538,18 @@ void getAdhanTimings(void* parameters){
       
       // Debug output
       Serial.println("Prayer Times:");
-      Serial.print("Fajr: "); Serial.println(adhanBuffer.fajr);
-      Serial.print("Dhuhr: "); Serial.println(adhanBuffer.dhuhr);
-      Serial.print("Asr: "); Serial.println(adhanBuffer.asr);
-      Serial.print("Maghrib: "); Serial.println(adhanBuffer.maghrib);
-      Serial.print("Isha: "); Serial.println(adhanBuffer.isha);
-      Serial.print("Hijri Date: "); Serial.println(adhanBuffer.hijriDate);
+      Serial.print("Fajr: "); 
+      Serial.println(adhanBuffer.fajr);
+      Serial.print("Dhuhr: "); 
+      Serial.println(adhanBuffer.dhuhr);
+      Serial.print("Asr: "); 
+      Serial.println(adhanBuffer.asr);
+      Serial.print("Maghrib: "); 
+      Serial.println(adhanBuffer.maghrib);
+      Serial.print("Isha: "); 
+      Serial.println(adhanBuffer.isha);
+      Serial.print("Hijri Date: "); 
+      Serial.println(adhanBuffer.hijriDate);
       
       adhanHttpClient.end();
       
@@ -678,23 +684,23 @@ void screenDisplay(void *parameters){
         
         screen.setCursor(5, 22);
         screen.print("Fajr: ");
-        screen.print(adhanBuffer.fajr.substring(0, 5)); // Show HH:MM only
+        screen.print(adhanBuffer.fajr); // Show HH:MM only
         
         screen.setCursor(5, 33);
         screen.print("Dhuhr: ");
-        screen.print(adhanBuffer.dhuhr.substring(0, 5));
+        screen.print(adhanBuffer.dhuhr);
         
         screen.setCursor(5, 44);
         screen.print("Asr: ");
-        screen.print(adhanBuffer.asr.substring(0, 5));
+        screen.print(adhanBuffer.asr);
         
         screen.setCursor(70, 22);
         screen.print("Maghrib: ");
-        screen.print(adhanBuffer.maghrib.substring(0, 5));
+        screen.print(adhanBuffer.maghrib);
         
         screen.setCursor(70, 33);
         screen.print("Isha: ");
-        screen.print(adhanBuffer.isha.substring(0, 5));
+        screen.print(adhanBuffer.isha);
         
         // Hijri date at bottom
         screen.setCursor(15, 60);
