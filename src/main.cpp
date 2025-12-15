@@ -537,6 +537,8 @@ void getAdhanTimings(void* parameters){
       xQueueOverwrite(screenAdhanQueue_handle, &adhanBuffer);
       
       // Debug output
+      Serial.println(timings);
+      /*
       Serial.println("Prayer Times:");
       Serial.print("Fajr: "); 
       Serial.println(adhanBuffer.fajr);
@@ -550,7 +552,8 @@ void getAdhanTimings(void* parameters){
       Serial.println(adhanBuffer.isha);
       Serial.print("Hijri Date: "); 
       Serial.println(adhanBuffer.hijriDate);
-      
+      */ 
+
       adhanHttpClient.end();
       
     } else {
